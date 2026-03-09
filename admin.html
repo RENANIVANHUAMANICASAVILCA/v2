@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CORE_VAULT // PREPACADEMY</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#ffffff;--sidebar:#f9fafb;--accent:#000000;--border:#ececec;--text:#111827;--text-mute:#6b7280}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;margin:0;display:flex;height:100vh;overflow:hidden}
+aside{width:260px;background:var(--sidebar);border-right:1px solid var(--border);padding:40px 24px;display:flex;flex-direction:column}
+.sys-label{font-family:'JetBrains Mono';font-size:.65rem;color:var(--text-mute);letter-spacing:2px;margin-bottom:40px}
+.nav-link{padding:12px 16px;border-radius:8px;font-size:.85rem;font-weight:500;color:var(--text-mute);cursor:pointer;transition:.2s;margin-bottom:4px;border:1px solid transparent}
+.nav-link:hover,.nav-link.active{background:#fff;color:var(--accent);border-color:var(--border)}
+main{flex:1;padding:60px 100px;overflow-y:auto;background:#fff}
+.glass-form{background:#fff;border:1px solid var(--border);border-radius:12px;padding:32px;max-width:700px}
+.field{margin-bottom:24px}
+label{font-size:.7rem;font-weight:700;text-transform:uppercase;color:var(--text-mute);display:block;margin-bottom:8px}
+input,select{width:100%;padding:12px;border-radius:6px;border:1px solid var(--border);font-family:'Inter';font-size:.9rem;outline:none;box-sizing:border-box}
+input:focus{border-color:var(--accent)}
+.btn-inject{background:var(--accent);color:#fff;border:none;padding:16px;border-radius:8px;width:100%;font-weight:600;cursor:pointer;transition:.2s}
+.btn-inject:disabled{background:#ccc;cursor:not-allowed}
+.data-table{margin-top:60px;width:100%;max-width:900px;border-collapse:collapse}
+.data-table th{text-align:left;font-size:.7rem;color:var(--text-mute);padding:12px;border-bottom:1px solid var(--border)}
+.data-table td{padding:16px 12px;font-size:.85rem;border-bottom:1px solid #f9fafb}
+.tag{font-family:'JetBrains Mono';font-size:.7rem;padding:4px 8px;background:#f3f4f6;border-radius:4px}
+.hidden{display:none!important}
+</style>
+</head>
+<body autocomplete="off">
+
+<aside>
+<div class="sys-label">CORE_VAULT // V4.1</div>
+<nav>
+<div class="nav-link active" onclick="setFilter('all',event)">All Resources</div>
+<div class="nav-link" onclick="setFilter('math',event)">Mathematics</div>
+<div class="nav-link" onclick="setFilter('phys',event)">Physics</div>
+<div class="nav-link" onclick="setFilter('bio',event)">Biology</div>
+<div class="nav-link" onclick="setFilter('eng',event)">English</div>
+<div class="nav-link" onclick="setFilter('literature',event)">Literature</div>
+<div class="nav-link" onclick="setFilter('history',event)">History</div>
+</nav>
+<div style="flex-grow:1"></div>
+<div class="nav-link" onclick="logout()" style="color:#ef4444">Disconnect</div>
+</aside>
+
+<main id="auth-screen" style="display:flex;align-items:center;justify-content:center">
+<div class="glass-form" style="width:320px;text-align:center">
+<label>Security Access</label>
+<input type="email" id="email" placeholder="USER_ID" autocomplete="off" style="margin-bottom:12px">
+<input type="password" id="pass" placeholder="SECRET_KEY" autocomplete="off" style="margin-bottom:24px">
+<button class="btn-inject" onclick="login()">AUTHORIZE</button>
+</div>
+</main>
+
+<main id="admin-panel" class="hidden">
+<h1>Central <span>Vault</span></h1>
+
+<section class="glass-form">
+
+<div class="field">
+<label>Resource Title</label>
+<input type="text" id="res-nombre" placeholder="Ex: Math AA HL P1 - Zone A" autocomplete="off">
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+<div class="field">
+<label>Subject Node</label>
+<select id="res-cat">
+<option value="math">Mathematics</option>
+<option value="phys">Physics</option>
+<option value="bio">Biology</option>
+<option value="eng">English</option>
+<option value="literature">Literature</option>
+<option value="history">History</option>
+</select>
+</div>
+
+<div class="field">
+<label>Folder Path</label>
+<select id="res-folder" onchange="toggleSubtype()">
+<option value="papers">/papers/</option>
+<option value="documents">/documents/</option>
+</select>
+</div>
+
+</div>
+
+<div class="field" id="subtype-field" style="display:none">
+<label>File Sub-Type</label>
+<select id="res-subtype">
+<option value="Note">Note / PDF</option>
+<option value="Video">Video Lesson</option>
+<option value="Book">Study Book</option>
+</select>
+</div>
+
+<div class="field">
+<label>Source URL</label>
+<input type="text" id="res-url" placeholder="https://..." autocomplete="off">
+</div>
+
+<button class="btn-inject" id="btn-save" onclick="subir()">DEPLOY ASSET</button>
+
+</section>
+
+<table class="data-table">
+<thead>
+<tr>
+<th>NAME</th>
+<th>NODE</th>
+<th>TYPE</th>
+<th>SUBTYPE</th>
+<th>ACTION</th>
+</tr>
+</thead>
+<tbody id="db-list"></tbody>
+</table>
+
+</main>
+
+<script>
+
+const SUPABASE_URL="https://rdttltmgxgjskhkwxegm.supabase.co"
+const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkdHRsdG1neGdqc2toa3d4ZWdtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwMjM0MTUsImV4cCI6MjA4ODU5OTQxNX0.QjoPzL-2O1rUNblRQXd_q-Mi0agekhja4DiCEWUQ8KU"
+
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY)
+
+let activeFilter="all"
+
+function toggleSubtype(){
+const folder=document.getElementById("res-folder").value
+document.getElementById("subtype-field").style.display=folder==="documents"?"block":"none"
+}
+
+async function login(){
+const email=document.getElementById("email").value
+const password=document.getElementById("pass").value
+const {error}=await sb.auth.signInWithPassword({email,password})
+if(error)alert("Error: "+error.message);else checkSession()
+}
+
+async function checkSession(){
+const {data:{user}}=await sb.auth.getUser()
+if(user){
+document.getElementById("auth-screen").classList.add("hidden")
+document.getElementById("admin-panel").classList.remove("hidden")
+cargar()
+}
+}
+
+async function subir(){
+
+const btn=document.getElementById("btn-save")
+btn.disabled=true
+btn.innerText="INJECTING..."
+
+const payload={
+nombre:document.getElementById("res-nombre").value,
+url_drive:document.getElementById("res-url").value,
+categoria:document.getElementById("res-cat").value,
+tipo:document.getElementById("res-folder").value,
+subtipo:document.getElementById("res-folder").value==="documents"?document.getElementById("res-subtype").value:"Past Paper",
+visibilidad:true
+}
+
+const {error}=await sb.from("recursos").insert([payload])
+
+if(error){
+alert("Fallo al subir: "+error.message)
+}else{
+document.getElementById("res-nombre").value=""
+document.getElementById("res-url").value=""
+cargar()
+}
+
+btn.disabled=false
+btn.innerText="DEPLOY ASSET"
+
+}
+
+async function cargar(){
+
+let query=sb.from("recursos").select("*").order("fecha_subida",{ascending:false})
+
+if(activeFilter!=="all")query=query.eq("categoria",activeFilter)
+
+const {data}=await query
+
+const list=document.getElementById("db-list")
+
+list.innerHTML=data.map(r=>`
+
+<tr>
+<td><b>${r.nombre}</b></td>
+<td><span class="tag">${r.categoria}</span></td>
+<td><span class="tag">${r.tipo}</span></td>
+<td><span class="tag">${r.subtipo||"-"}</span></td>
+<td><button onclick="borrar('${r.id}')" style="color:red;background:none;border:none;cursor:pointer">PURGE</button></td>
+</tr>
+
+`).join("")
+
+}
+
+function setFilter(cat,e){
+activeFilter=cat
+document.querySelectorAll(".nav-link").forEach(l=>l.classList.remove("active"))
+if(e)e.target.classList.add("active")
+cargar()
+}
+
+async function borrar(id){
+if(confirm("¿Seguro?")){
+await sb.from("recursos").delete().eq("id",id)
+cargar()
+}
+}
+
+function logout(){
+sb.auth.signOut()
+location.reload()
+}
+
+window.onload=checkSession
+
+</script>
+
+</body>
+</html>
